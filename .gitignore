@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# Production build
+client/dist/
+
+# Environment Variables
+.env
+server/.env
+
+# Uploads directory contents (preserve directory with .gitkeep)
+server/uploads/*
+!server/uploads/.gitkeep
+server/uploads/receipts/*
+!server/uploads/receipts/.gitkeep
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+*.log
