@@ -464,7 +464,7 @@ export const AuthorityDashboard = () => {
 
                         <td style={{ textAlign: 'right' }}>
                           <a
-                            href={`http://localhost:5000/api/disbursement/receipt/${txn.applicationId?._id || txn.applicationId}`}
+                            href={`http://localhost:5000/api/disbursement/receipt/${txn.applicationId?._id || txn.applicationId}?token=${token}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-secondary btn-sm"

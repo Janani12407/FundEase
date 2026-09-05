@@ -4,9 +4,33 @@ import { X, Download, ShieldCheck, CheckCircle, Landmark, Award } from 'lucide-r
 export const ReceiptModal = ({ application, onClose }) => {
   if (!application) return null;
 
-  const downloadReceipt = () => {
-    const downloadUrl = `http://localhost:5000/api/disbursement/receipt/${application._id}`;
-    window.open(downloadUrl, '_blank');
+  const downloadReceipt = async () => {
+    const token = localStorage.getItem('fundease_token');
+    try {
+      const res = await fetch(`http://localhost:5000/api/disbursement/receipt/${application._id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        // Fallback to window.open with query token
+        window.open(`http://localhost:5000/api/disbursement/receipt/${application._id}?token=${token}`, '_blank');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Voucher_${application.applicationNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      window.open(`http://localhost:5000/api/disbursement/receipt/${application._id}?token=${token}`, '_blank');
+    }
   };
 
   const d = application.disbursementDetails || {};
