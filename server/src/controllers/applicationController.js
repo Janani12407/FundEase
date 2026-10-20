@@ -6,12 +6,18 @@ import { runFraudChecks } from '../services/fraudDetectionService.js';
 import { calculateFileHash } from '../middleware/upload.js';
 import { notifyStatusChange } from '../services/emailService.js';
 
-// Helper to generate sequential application number
+// M5: Helper to generate sequential unique application number
 const generateApplicationNumber = async () => {
   const count = await Application.countDocuments();
   const year = new Date().getFullYear();
   const pad = String(count + 1001).padStart(5, '0');
-  return `SCH-${year}-${pad}`;
+  const candidate = `SCH-${year}-${pad}`;
+  const exists = await Application.exists({ applicationNumber: candidate });
+  if (exists) {
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    return `SCH-${year}-${pad}-${randomSuffix}`;
+  }
+  return candidate;
 };
 
 // @route   POST /api/applications/upload
@@ -177,9 +183,15 @@ export const getAllApplications = async (req, res, next) => {
 
     // Role-based scoping
     if (req.user.role === 'institution_admin') {
-      // Reviewers can see applications from their institution
+      // H4: Apply institution scope LAST and unconditionally so it cannot be overridden
+      // by the caller-supplied `institution` query param.
       if (req.user.institution) {
         query['academicDetails.institutionName'] = new RegExp(req.user.institution, 'i');
+      }
+    } else {
+      // Non-institution-admin roles: allow optional institution filter from query
+      if (institution && institution !== 'ALL') {
+        query['academicDetails.institutionName'] = new RegExp(institution, 'i');
       }
     }
 
@@ -189,10 +201,6 @@ export const getAllApplications = async (req, res, next) => {
 
     if (riskLevel && riskLevel !== 'ALL') {
       query['fraudCheck.riskLevel'] = riskLevel;
-    }
-
-    if (institution && institution !== 'ALL') {
-      query['academicDetails.institutionName'] = new RegExp(institution, 'i');
     }
 
     if (search) {
@@ -260,6 +268,14 @@ export const resubmitDocuments = async (req, res, next) => {
 
     const { documentIds = [], note = '' } = req.body;
 
+    // C5: Only allow resubmission when the application is explicitly in 'Resubmission Requested' state.
+    if (application.status !== 'Resubmission Requested') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot resubmit documents for an application in status '${application.status}'. Only allowed when status is 'Resubmission Requested'.`,
+      });
+    }
+
     if (documentIds.length > 0) {
       application.documents = [...new Set([...application.documents.map((d) => d.toString()), ...documentIds])];
       await Document.updateMany({ _id: { $in: documentIds } }, { applicationId: application._id });
@@ -276,7 +292,9 @@ export const resubmitDocuments = async (req, res, next) => {
       timestamp: new Date(),
     });
 
-    application.eligibilityCheck = evaluateEligibility(application, application.documents.length);
+    // H9: Accurate document count from actual Document records
+    const docCount = await Document.countDocuments({ applicationId: application._id });
+    application.eligibilityCheck = evaluateEligibility(application, docCount);
     application.fraudCheck = await runFraudChecks(application._id, req.user._id, application, application.documents);
 
     await application.save();

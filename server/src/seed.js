@@ -32,8 +32,15 @@ const seedDatabase = async () => {
   try {
     console.log('[Seed] Connecting to MongoDB...');
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/fundease');
-    console.log('[Seed] Connected. Clearing previous seed data...');
+    const isForce = process.argv.includes('--force');
+    const existingUsersCount = await User.countDocuments();
 
+    if (existingUsersCount > 0 && !isForce) {
+      console.log(`[Seed] Database already contains ${existingUsersCount} users. Use 'node src/seed.js --force' to wipe and re-seed. Skipping.`);
+      process.exit(0);
+    }
+
+    console.log('[Seed] Connected. Clearing previous seed data...');
     await User.deleteMany({});
     await Application.deleteMany({});
     await Document.deleteMany({});

@@ -22,6 +22,12 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      // H7: If user profile is already populated in state (e.g. from login/register), avoid redundant /api/auth/me
+      if (user) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await fetch('http://localhost:5000/api/auth/me', {
           headers: {
@@ -30,14 +36,14 @@ export const AuthProvider = ({ children }) => {
         });
         const data = await res.json();
 
-        if (data.success && data.user) {
+        if (res.ok && data.success && data.user) {
           setUser(data.user);
-        } else {
+        } else if (res.status === 401) {
           logout();
         }
       } catch (err) {
         console.error('Failed to load user profile:', err);
-        logout();
+        // H7: Do not wipe session on transient network error
       } finally {
         setLoading(false);
       }

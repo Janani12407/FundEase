@@ -158,7 +158,7 @@ export const TimelineTracker = ({ statusHistory = [], currentStatus = 'Submitted
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {statusHistory.map((item, index) => (
             <div
-              key={index}
+              key={item._id || `${item.status}-${item.timestamp || index}`}
               style={{
                 display: 'flex',
                 alignItems: 'flex-start',

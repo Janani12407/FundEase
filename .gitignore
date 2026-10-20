@@ -20,3 +20,5 @@ server/uploads/receipts/*
 .DS_Store
 Thumbs.db
 *.log
+*.timestamp-*.mjs
+*.timestamp-*.js

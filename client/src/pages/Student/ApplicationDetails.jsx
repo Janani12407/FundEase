@@ -77,6 +77,10 @@ export const ApplicationDetails = () => {
         body: uploadPayload,
       });
       const upData = await upRes.json();
+      // H8: Guard against upload failure before accessing documents array.
+      if (!upRes.ok || !upData.success || !upData.documents || upData.documents.length === 0) {
+        throw new Error(upData?.message || 'Document upload failed. Please try again.');
+      }
       const newDocId = upData.documents[0]?._id;
 
       // 2. Call resubmit endpoint

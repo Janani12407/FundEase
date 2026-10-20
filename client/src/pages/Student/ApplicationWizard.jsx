@@ -13,7 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export const ApplicationWizard = () => {
+const ApplicationWizard = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
 

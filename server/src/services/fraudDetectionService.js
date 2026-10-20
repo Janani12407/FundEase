@@ -10,39 +10,47 @@ export const runFraudChecks = async (currentApplicationId, studentId, applicatio
   let hasDuplicateBank = false;
   let hasDuplicateDocumentHash = false;
 
-  const aadhaar = applicationData.personalDetails?.aadhaarNumber;
-  const accountNumber = applicationData.bankDetails?.accountNumber;
+  // Normalize Aadhaar and account number to strip spaces/dashes so formatting variants are caught (M4)
+  const rawAadhaar = applicationData.personalDetails?.aadhaarNumber || '';
+  const aadhaar = rawAadhaar.replace(/[\s-]/g, '');
+  const rawAccount = applicationData.bankDetails?.accountNumber || '';
+  const accountNumber = rawAccount.replace(/[\s-]/g, '');
 
-  // 1. Check Duplicate Aadhaar / National ID across other applications
+  // 1. Check Duplicate Aadhaar / National ID across OTHER students' applications (C7/C8)
   if (aadhaar) {
+    // Build a regex that matches the normalised Aadhaar in any stored format
+    const aadhaarRegex = new RegExp(aadhaar.split('').join('[\\s-]*'), 'i');
     const matchingAadhaarApps = await Application.find({
       _id: { $ne: currentApplicationId },
-      'personalDetails.aadhaarNumber': aadhaar,
-      status: { $ne: 'Draft' },
+      student: { $ne: studentId },          // exclude the same student's own applications
+      'personalDetails.aadhaarNumber': aadhaarRegex,
+      status: { $nin: ['Draft', 'Rejected'] },
     }).select('applicationNumber student status createdAt');
 
     if (matchingAadhaarApps.length > 0) {
       hasDuplicateAadhaar = true;
       const appNumbers = matchingAadhaarApps.map((a) => a.applicationNumber).join(', ');
       duplicateDetails.push(
-        `CRITICAL: Aadhaar/National ID ${aadhaar} has already been registered in application(s): [${appNumbers}].`
+        `CRITICAL: Aadhaar/National ID ${rawAadhaar} has already been registered in application(s): [${appNumbers}].`
       );
     }
   }
 
-  // 2. Check Duplicate Bank Account Number across other applications
+  // 2. Check Duplicate Bank Account Number across OTHER students' applications (C7/C8)
   if (accountNumber) {
+    const accountRegex = new RegExp(accountNumber.split('').join('[\\s-]*'), 'i');
     const matchingBankApps = await Application.find({
       _id: { $ne: currentApplicationId },
-      'bankDetails.accountNumber': accountNumber,
-      status: { $ne: 'Draft' },
+      student: { $ne: studentId },          // exclude the same student's own applications
+      'bankDetails.accountNumber': accountRegex,
+      status: { $nin: ['Draft', 'Rejected'] },
     }).select('applicationNumber student status bankDetails.accountHolderName');
 
     if (matchingBankApps.length > 0) {
       hasDuplicateBank = true;
       const appNumbers = matchingBankApps.map((a) => `${a.applicationNumber} (${a.bankDetails?.accountHolderName || 'Student'})`).join(', ');
       duplicateDetails.push(
-        `HIGH RISK: Bank Account Number ${accountNumber} is reused across multiple claims: [${appNumbers}].`
+        `HIGH RISK: Bank Account Number ${rawAccount} is reused across multiple claims: [${appNumbers}].`
       );
     }
   }

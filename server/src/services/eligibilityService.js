@@ -13,7 +13,7 @@ export const evaluateEligibility = (applicationData, documentsCount = 0) => {
 
   // Rule 1: Income Threshold
   // General: <= 300,000 INR; Reserved categories (OBC/SC/ST/EWS): <= 500,000 INR
-  const incomeThreshold = ['SC', 'ST', 'EWS'].includes(category) ? 500000 : 300000;
+  const incomeThreshold = ['OBC', 'SC', 'ST', 'EWS'].includes(category) ? 500000 : 300000;
   let incomeEligible = true;
 
   if (income > incomeThreshold) {

@@ -16,8 +16,31 @@ export const institutionReview = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Application not found.' });
     }
 
+    // Terminal states — fully locked.
     if (application.isLocked) {
-      return res.status(400).json({ success: false, message: 'This application is locked and cannot be modified.' });
+      return res.status(400).json({ success: false, message: 'This application is locked (already disbursed) and cannot be modified.' });
+    }
+    if (['Rejected'].includes(application.status)) {
+      return res.status(400).json({ success: false, message: `Application is in a terminal state ('${application.status}') and cannot be modified.` });
+    }
+
+    // C3/H1: State-machine pre-condition table for institution-level actions.
+    const VALID_FROM = {
+      START_REVIEW:        ['Submitted', 'Resubmission Requested'],
+      FORWARD:             ['Submitted', 'Under Institution Review'],
+      REJECT:              ['Submitted', 'Under Institution Review'],
+      REQUEST_RESUBMISSION:['Submitted', 'Under Institution Review'],
+    };
+
+    const allowedFromStates = VALID_FROM[action];
+    if (!allowedFromStates) {
+      return res.status(400).json({ success: false, message: 'Invalid review action specified.' });
+    }
+    if (!allowedFromStates.includes(application.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Action '${action}' is not permitted for an application in status '${application.status}'. Expected one of: ${allowedFromStates.join(', ')}.`,
+      });
     }
 
     let newStatus = application.status;
@@ -47,8 +70,6 @@ export const institutionReview = async (req, res, next) => {
       }
       newStatus = 'Resubmission Requested';
       logAction = 'RESUBMISSION_REQUESTED';
-    } else {
-      return res.status(400).json({ success: false, message: 'Invalid review action specified.' });
     }
 
     const previousStatus = application.status;
@@ -130,8 +151,30 @@ export const authorityReview = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Application not found.' });
     }
 
+    // Terminal states — fully locked.
     if (application.isLocked) {
-      return res.status(400).json({ success: false, message: 'This application is locked and cannot be modified.' });
+      return res.status(400).json({ success: false, message: 'This application is locked (already disbursed) and cannot be modified.' });
+    }
+    if (['Rejected'].includes(application.status)) {
+      return res.status(400).json({ success: false, message: `Application is in a terminal state ('${application.status}') and cannot be modified.` });
+    }
+
+    // C4/H2: State-machine pre-condition table for authority-level actions.
+    const VALID_FROM = {
+      START_REVIEW: ['Forwarded'],
+      APPROVE:      ['Under Authority Review'],
+      REJECT:       ['Under Authority Review', 'Forwarded'],
+    };
+
+    const allowedFromStates = VALID_FROM[action];
+    if (!allowedFromStates) {
+      return res.status(400).json({ success: false, message: 'Invalid authority review action specified.' });
+    }
+    if (!allowedFromStates.includes(application.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Action '${action}' is not permitted for an application in status '${application.status}'. Expected one of: ${allowedFromStates.join(', ')}.`,
+      });
     }
 
     let newStatus = application.status;
@@ -152,8 +195,6 @@ export const authorityReview = async (req, res, next) => {
       }
       newStatus = 'Rejected';
       logAction = 'REJECTED';
-    } else {
-      return res.status(400).json({ success: false, message: 'Invalid authority review action specified.' });
     }
 
     const previousStatus = application.status;
@@ -227,7 +268,20 @@ export const authorityReview = async (req, res, next) => {
 // @desc    Get complete multi-level approval history for an application
 export const getApprovalLogs = async (req, res, next) => {
   try {
-    const logs = await ApprovalLog.find({ applicationId: req.params.applicationId })
+    const { applicationId } = req.params;
+
+    // M8: Authorization scope — students may only read logs for their own application.
+    if (req.user.role === 'student') {
+      const application = await Application.findById(applicationId).select('student');
+      if (!application) {
+        return res.status(404).json({ success: false, message: 'Application not found.' });
+      }
+      if (application.student.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view approval logs for this application.' });
+      }
+    }
+
+    const logs = await ApprovalLog.find({ applicationId })
       .sort({ createdAt: 1 });
 
     res.status(200).json({
